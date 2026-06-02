@@ -1,0 +1,351 @@
+// Prisma Schema for AMSPEC Lab Inventory Management System
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+// ─── ENUMS ──────────────────────────────────────────────────────────────────────
+
+enum Role {
+  ADMIN
+  LAB_MANAGER
+  CHEMIST
+  STORE_KEEPER
+  AUDITOR
+}
+
+enum Unit {
+  L
+  mL
+  kg
+  g
+  mg
+  oz
+  gal
+}
+
+enum HazardClass {
+  FLAMMABLE
+  OXIDIZER
+  CORROSIVE
+  TOXIC
+  IRRITANT
+  EXPLOSIVE
+  COMPRESSED_GAS
+  ENVIRONMENTAL_HAZARD
+  HEALTH_HAZARD
+  NON_HAZARDOUS
+}
+
+enum ChemicalStatus {
+  SAFE
+  NEAR_EXPIRY
+  EXPIRED
+}
+
+enum CertificateType {
+  COA
+  CALIBRATION
+  ISO
+  SDS_MSDS
+  COMPLIANCE
+  OTHER
+}
+
+enum TransactionType {
+  PURCHASE
+  CONSUMPTION
+  DISPOSAL
+  ADJUSTMENT
+  RETURN
+}
+
+enum NotificationType {
+  EXPIRY_WARNING
+  EXPIRY_ALERT
+  LOW_STOCK
+  CERTIFICATE_EXPIRY
+  SYSTEM
+  AUDIT
+}
+
+enum NotificationPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum AlertType {
+  DAYS_30
+  DAYS_15
+  DAYS_7
+  EXPIRED
+}
+
+enum LabAccessLevel {
+  READ
+  READ_WRITE
+  FULL_ACCESS
+  NONE
+}
+
+// ─── MODELS ─────────────────────────────────────────────────────────────────────
+
+model User {
+  id                String    @id @default(uuid())
+  email             String    @unique
+  password          String
+  firstName         String
+  lastName          String
+  role              Role      @default(CHEMIST)
+  isActive          Boolean   @default(true)
+  phone             String?
+  department        String?
+  lastLogin         DateTime?
+  passwordResetToken String?
+  passwordResetExpiry DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  // Relations
+  labAccess         LabAccess[]
+  chemicals         Chemical[]
+  certificates      Certificate[]
+  transactions      InventoryTransaction[]
+  notifications     Notification[]
+  auditLogs         AuditLog[]
+
+  @@map("users")
+}
+
+model Chemical {
+  id                String          @id @default(uuid())
+  name              String
+  casNumber         String?
+  batchNumber       String?
+  manufacturer      String?
+  quantity          Float
+  unit              Unit            @default(L)
+  purchaseDate      DateTime
+  expiryDate        DateTime
+  hazardClass       HazardClass     @default(NON_HAZARDOUS)
+  storageLocation   String?
+  supplierName      String?
+  supplierContact   String?
+  minStockLevel     Float           @default(0)
+  barcodeData       String?
+  status            ChemicalStatus  @default(SAFE)
+  notes             String?
+  addedById         String
+  labId             String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  // Relations
+  addedBy           User            @relation(fields: [addedById], references: [id])
+  lab               Lab?            @relation(fields: [labId], references: [id], onDelete: SetNull)
+  certificates      Certificate[]
+  transactions      InventoryTransaction[]
+  notifications     Notification[]
+  emailAlerts       EmailAlert[]
+
+  @@index([expiryDate])
+  @@index([status])
+  @@index([name])
+  @@index([casNumber])
+  @@index([labId])
+  @@map("chemicals")
+}
+
+model Certificate {
+  id                String          @id @default(uuid())
+  name              String
+  type              CertificateType @default(OTHER)
+  filePath          String
+  originalFilename  String
+  mimeType          String
+  fileSize          Int
+  uploadDate        DateTime        @default(now())
+  expiryDate        DateTime?
+  reminderDays      Int             @default(30)
+  chemicalId        String?
+  uploadedById      String
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  // Relations
+  chemical          Chemical?       @relation(fields: [chemicalId], references: [id], onDelete: SetNull)
+  uploadedBy        User            @relation(fields: [uploadedById], references: [id])
+
+  @@index([type])
+  @@index([expiryDate])
+  @@map("certificates")
+}
+
+model InventoryTransaction {
+  id                String          @id @default(uuid())
+  chemicalId        String
+  transactionType   TransactionType
+  quantity          Float
+  balanceBefore     Float
+  balanceAfter      Float
+  reason            String?
+  performedById     String
+  createdAt         DateTime        @default(now())
+
+  // Relations
+  chemical          Chemical        @relation(fields: [chemicalId], references: [id], onDelete: Cascade)
+  performedBy       User            @relation(fields: [performedById], references: [id])
+
+  @@index([chemicalId])
+  @@index([createdAt])
+  @@map("inventory_transactions")
+}
+
+model Notification {
+  id                String              @id @default(uuid())
+  title             String
+  message           String
+  type              NotificationType    @default(SYSTEM)
+  priority          NotificationPriority @default(MEDIUM)
+  isRead            Boolean             @default(false)
+  userId            String
+  chemicalId        String?
+  createdAt         DateTime            @default(now())
+
+  // Relations
+  user              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chemical          Chemical?           @relation(fields: [chemicalId], references: [id], onDelete: SetNull)
+
+  @@index([userId, isRead])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+model AuditLog {
+  id                String    @id @default(uuid())
+  userId            String
+  action            String
+  entityType        String
+  entityId          String?
+  previousData      Json?
+  newData           Json?
+  ipAddress         String?
+  userAgent         String?
+  createdAt         DateTime  @default(now())
+
+  // Relations
+  user              User      @relation(fields: [userId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model EmailAlert {
+  id                String    @id @default(uuid())
+  chemicalId        String
+  alertType         AlertType
+  alertDate         DateTime
+  sent              Boolean   @default(false)
+  sentAt            DateTime?
+  recipients        String    // JSON array of email addresses
+  errorMessage      String?
+  createdAt         DateTime  @default(now())
+
+  // Relations
+  chemical          Chemical  @relation(fields: [chemicalId], references: [id], onDelete: Cascade)
+
+  @@unique([chemicalId, alertType, alertDate])
+  @@index([sent, alertDate])
+  @@map("email_alerts")
+}
+
+model SystemSettings {
+  id                String    @id @default(uuid())
+  key               String    @unique
+  value             String
+  description       String?
+  updatedAt         DateTime  @updatedAt
+
+  @@map("system_settings")
+}
+
+model Lab {
+  id                String          @id @default(uuid())
+  name              String          @unique
+  description       String?
+  continent         String?
+  country           String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  // Relations
+  labAccess         LabAccess[]
+  chemicals         Chemical[]
+  glassware         Glassware[]
+  consumables       Consumable[]
+
+  @@map("labs")
+}
+
+model LabAccess {
+  id                String          @id @default(uuid())
+  userId            String
+  labId             String
+  accessLevel       LabAccessLevel  @default(READ)
+  isTemporary       Boolean         @default(false)
+  expiresAt         DateTime?
+  grantedBy         String
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  // Relations
+  user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lab               Lab             @relation(fields: [labId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, labId])
+  @@index([labId])
+  @@map("lab_access")
+}
+
+model Glassware {
+  id                String          @id @default(uuid())
+  name              String
+  type              String          // e.g. Beaker, Flask, Pipette
+  size              String?         // e.g. 250mL, 500mL
+  quantity          Int
+  minStockLevel     Int             @default(0)
+  storageLocation   String?
+  labId             String
+  lab               Lab             @relation(fields: [labId], references: [id], onDelete: Cascade)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@index([labId])
+  @@map("glassware")
+}
+
+model Consumable {
+  id                String          @id @default(uuid())
+  name              String
+  category          String?         // e.g. Gloves, Filters
+  quantity          Float
+  unit              String          @default("pcs")
+  minStockLevel     Float           @default(0)
+  storageLocation   String?
+  labId             String
+  lab               Lab             @relation(fields: [labId], references: [id], onDelete: Cascade)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@index([labId])
+  @@map("consumables")
+}

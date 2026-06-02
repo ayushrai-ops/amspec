@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: amspec-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: amspec
+      POSTGRES_PASSWORD: amspec_secret_2024
+      POSTGRES_DB: amspec_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U amspec -d amspec_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: amspec-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://amspec:amspec_secret_2024@postgres:5432/amspec_db
+      JWT_SECRET: amspec-jwt-secret-change-in-production
+      JWT_REFRESH_SECRET: amspec-refresh-secret-change-in-production
+      PORT: 5000
+      NODE_ENV: production
+      SMTP_HOST: smtp.gmail.com
+      SMTP_PORT: 587
+      SMTP_USER: ""
+      SMTP_PASS: ""
+      SMTP_FROM: noreply@amspecgroup.com
+      FRONTEND_URL: http://localhost:3000
+      UPLOAD_DIR: /app/uploads
+    ports:
+      - "5000:5000"
+    volumes:
+      - uploads_data:/app/uploads
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: amspec-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "3000:3000"
+
+volumes:
+  postgres_data:
+  uploads_data:
