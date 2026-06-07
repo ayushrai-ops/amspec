@@ -88,6 +88,13 @@ enum AlertType {
   EXPIRED
 }
 
+enum LabAccessLevel {
+  READ
+  READ_WRITE
+  FULL_ACCESS
+  NONE
+}
+
 // ─── MODELS ─────────────────────────────────────────────────────────────────────
 
 model User {
@@ -107,6 +114,7 @@ model User {
   updatedAt         DateTime  @updatedAt
 
   // Relations
+  labAccess         LabAccess[]
   chemicals         Chemical[]
   certificates      Certificate[]
   transactions      InventoryTransaction[]
@@ -135,11 +143,13 @@ model Chemical {
   status            ChemicalStatus  @default(SAFE)
   notes             String?
   addedById         String
+  labId             String?
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
 
   // Relations
   addedBy           User            @relation(fields: [addedById], references: [id])
+  lab               Lab?            @relation(fields: [labId], references: [id], onDelete: SetNull)
   certificates      Certificate[]
   transactions      InventoryTransaction[]
   notifications     Notification[]
@@ -149,6 +159,7 @@ model Chemical {
   @@index([status])
   @@index([name])
   @@index([casNumber])
+  @@index([labId])
   @@map("chemicals")
 }
 
@@ -265,4 +276,76 @@ model SystemSettings {
   updatedAt         DateTime  @updatedAt
 
   @@map("system_settings")
+}
+
+model Lab {
+  id                String          @id @default(uuid())
+  name              String          @unique
+  description       String?
+  continent         String?
+  country           String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  // Relations
+  labAccess         LabAccess[]
+  chemicals         Chemical[]
+  glassware         Glassware[]
+  consumables       Consumable[]
+
+  @@map("labs")
+}
+
+model LabAccess {
+  id                String          @id @default(uuid())
+  userId            String
+  labId             String
+  accessLevel       LabAccessLevel  @default(READ)
+  isTemporary       Boolean         @default(false)
+  expiresAt         DateTime?
+  grantedBy         String
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  // Relations
+  user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lab               Lab             @relation(fields: [labId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, labId])
+  @@index([labId])
+  @@map("lab_access")
+}
+
+model Glassware {
+  id                String          @id @default(uuid())
+  name              String
+  type              String          // e.g. Beaker, Flask, Pipette
+  size              String?         // e.g. 250mL, 500mL
+  quantity          Int
+  minStockLevel     Int             @default(0)
+  storageLocation   String?
+  labId             String
+  lab               Lab             @relation(fields: [labId], references: [id], onDelete: Cascade)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@index([labId])
+  @@map("glassware")
+}
+
+model Consumable {
+  id                String          @id @default(uuid())
+  name              String
+  category          String?         // e.g. Gloves, Filters
+  quantity          Float
+  unit              String          @default("pcs")
+  minStockLevel     Float           @default(0)
+  storageLocation   String?
+  labId             String
+  lab               Lab             @relation(fields: [labId], references: [id], onDelete: Cascade)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@index([labId])
+  @@map("consumables")
 }

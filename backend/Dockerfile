@@ -3,14 +3,14 @@ FROM node:20-alpine
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm ci --only=production
+RUN npm ci
 
 COPY prisma ./prisma/
-RUN npx prisma generate
+RUN cp prisma/schema.prisma.postgres prisma/schema.prisma && npx prisma generate
 
 COPY . .
 RUN npm run build
 
 EXPOSE 5000
 
-CMD ["sh", "-c", "npx prisma migrate deploy && npm start"]
+CMD ["sh", "-c", "npx prisma db push && npm start"]
