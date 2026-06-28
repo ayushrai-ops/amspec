@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useParams } from 'react-router-dom';
 import { FlaskConical, ArrowLeft, Save, AlertTriangle } from 'lucide-react';
 import api from '../lib/api';
 import { HAZARD_CLASSES, UNITS } from '../lib/constants';
 
 export default function AddChemicalPage() {
   const navigate = useNavigate();
+  const { id } = useParams();
+  const isEdit = !!id;
   const [searchParams] = useSearchParams();
   const initialLabId = searchParams.get('labId') || '';
 
@@ -30,7 +32,37 @@ export default function AddChemicalPage() {
       }
     };
     fetchLabs();
-  }, []);
+
+    if (isEdit) {
+      const fetchChemical = async () => {
+        try {
+          const res = await api.get(`/chemicals/${id}`);
+          const data = res.data.data;
+          setForm({
+            name: data.name || '',
+            casNumber: data.casNumber || '',
+            batchNumber: data.batchNumber || '',
+            manufacturer: data.manufacturer || '',
+            quantity: data.quantity?.toString() || '',
+            unit: data.unit || 'L',
+            purchaseDate: data.purchaseDate ? data.purchaseDate.split('T')[0] : '',
+            expiryDate: data.expiryDate ? data.expiryDate.split('T')[0] : '',
+            hazardClass: data.hazardClass || 'NON_HAZARDOUS',
+            storageLocation: data.storageLocation || '',
+            supplierName: data.supplierName || '',
+            supplierContact: data.supplierContact || '',
+            minStockLevel: data.minStockLevel?.toString() || '',
+            notes: data.notes || '',
+            labId: data.labId || '',
+          });
+        } catch (err) {
+          console.error('Failed to fetch chemical', err);
+          setError('Failed to fetch chemical details.');
+        }
+      };
+      fetchChemical();
+    }
+  }, [id, isEdit]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -47,7 +79,11 @@ export default function AddChemicalPage() {
         minStockLevel: form.minStockLevel ? parseFloat(form.minStockLevel) : 0,
         labId: form.labId || null,
       };
-      await api.post('/chemicals', payload);
+      if (isEdit) {
+        await api.put(`/chemicals/${id}`, payload);
+      } else {
+        await api.post('/chemicals', payload);
+      }
       if (form.labId) {
         navigate(`/labs/${form.labId}`);
       } else {
@@ -82,7 +118,7 @@ export default function AddChemicalPage() {
         </button>
         <div>
           <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-            Add New Chemical
+            {isEdit ? 'Edit Chemical' : 'Add New Chemical'}
           </h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
             Enter the chemical details below

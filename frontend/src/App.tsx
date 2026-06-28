@@ -29,6 +29,7 @@ function App() {
         <Route element={<MainLayout />}>
           <Route path="/" element={<DashboardPage />} />
           <Route path="/chemicals/add" element={<AddChemicalPage />} />
+          <Route path="/chemicals/:id/edit" element={<AddChemicalPage />} />
           <Route path="/chemicals/:id" element={<ChemicalDetailsPage />} />
           <Route path="/certificates" element={<CertificatePage />} />
           <Route path="/notifications" element={<NotificationsPage />} />

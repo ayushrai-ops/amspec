@@ -86,9 +86,23 @@ export default function ChemicalDetailsPage() {
             CAS: {chemical.casNumber || 'N/A'} · Batch: {chemical.batchNumber || 'N/A'}
           </p>
         </div>
-        <button className="btn btn-secondary" style={{ gap: '6px' }}>
-          <Edit size={16} /> Edit
-        </button>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button className="btn btn-secondary" onClick={() => navigate(`/chemicals/${chemical.id}/edit`)} style={{ gap: '6px' }}>
+            <Edit size={16} /> Edit
+          </button>
+          <button className="btn btn-secondary" onClick={async () => {
+            if (window.confirm('Are you sure you want to delete this chemical? This action cannot be undone.')) {
+              try {
+                await api.delete(`/chemicals/${chemical.id}`);
+                navigate('/inventory');
+              } catch (err: any) {
+                alert(err.response?.data?.message || 'Failed to delete chemical');
+              }
+            }
+          }} style={{ gap: '6px', background: '#ef4444', color: 'white', border: 'none' }}>
+            <Trash2 size={16} /> Delete
+          </button>
+        </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '16px' }}>
